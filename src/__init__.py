@@ -1,10 +1,11 @@
 #Ricorda! Stai usando la versione dei Driver per Chrome 83.0.4103.39
 import json
+import socket
 import time
 from selenium.webdriver import Chrome
 import telegram_send
 
-def controlla_novita():
+def controlla_novita(nuova_auto):
     manda_tg = False
     if link in list_auto_old:
         if list_auto_old[link] != nuova_auto:
@@ -23,6 +24,7 @@ def settings():
     if cookie_button is not None:
         cookie_button.click()
     time.sleep(2)
+    #scroll the page to load all the cars
     i=0
     while i<5:
         driver.execute_script("window.scrollBy(0,1000)")
@@ -54,8 +56,18 @@ def settings():
     # time.sleep(4)
 
 
+def ha_optional_giusti(nuova_auto: dict, optional_che_vorrei):
+    if 'GT Line' in nuova_auto['nome']:
+        optional_che_vorrei.pop(1)
+    list_bool = map(lambda opt: opt in nuova_auto['optional'], optional_che_vorrei)
+    for bool in list_bool:
+        if not bool:
+            return False
+    return True
+
 def get_new_car():
-    global list_auto_old, list_auto_new, link, nuova_auto
+    global list_auto_old, list_auto_new, link
+    print("Nuova ricerca auto")
     # GET INFO
     box_auto = driver.find_element_by_xpath("/html/body/div[1]/div/div[2]")
     automobili = box_auto.find_elements_by_class_name('result')
@@ -94,11 +106,13 @@ def get_new_car():
         time.sleep(2)
         # controllo se aggiornare il db
         nuova_auto = {'nome': nome, 'optional': optional}
-        print('Ho trovato questa auto', nuova_auto)
-        controlla_novita()
+        if ha_optional_giusti(nuova_auto, optional_desiderati.copy()):
+
+            print('Ho trovato questa auto', nuova_auto)
+            controlla_novita(nuova_auto)
         # print('prossima pagina')
         # pulsanti_pagina[-2].find_element_by_tag_name('a').click()
-        time.sleep(2)
+        #time.sleep(2)
         # /div/div[2]/footer/div[2]/ul/li[4]/a
 
     with open('cars.json','w',encoding='UTF-8') as writer:
@@ -107,14 +121,23 @@ def get_new_car():
 
 def start_new_search():
     global driver
-    with Chrome() as driver:
-        driver.get(
-            "https://webstore.peugeot.it/Cerca-per-categorie?lat=45.0607417&lng=7.528754299999999&LocationL=10098%20Rivoli%20TO%2C%20Italia&etd=0&mbd=1PP2S5P00000;&nbDisMax=20&GrTransmissionType=BVA00006&GrTransmissionTypeL=%20Automatico%20a%208%20Rapporti%20S&S&GrGrade=10000020;10001074&GrGradeL=&dst=100")
-        driver.maximize_window()
+    try:
+        with Chrome() as driver:
+            driver.get(sito)
+            driver.maximize_window()
 
-        settings()
-        get_new_car()
-        # time.sleep(120)
-
-
-start_new_search()
+            settings()
+            get_new_car()
+            # time.sleep(120)
+    except socket.gaierror:
+        print("Errore di connessione")
+try:
+    sito = "https://webstore.peugeot.it/Cerca-per-categorie?lat=45.0607417&lng=7.528754299999999&LocationL=10098%20Rivoli%20TO%2C%20Italia&etd=0&mbd=1PP2S5P00000;&nbDisMax=20&GrTransmissionType=BVA00006&GrTransmissionTypeL=%20Automatico%20a%208%20Rapporti%20S&S&GrGrade=10000020;10001074&GrGradeL=&dst=100"
+    optional_desiderati = ['Drive Assist Plus','Sensori di Parcheggio Anteriori con Visiopark 180']
+    while True:
+        start_new_search()
+        time.sleep(60*30)
+except Exception as e:
+    with open('stderr.txt','w') as error:
+        print(e,file=error)
+        raise

@@ -1,0 +1,1 @@
+- prendere il prezzo
