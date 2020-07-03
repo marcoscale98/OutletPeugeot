@@ -88,7 +88,6 @@ def get_new_car():
         info_box.find_elements_by_tag_name('p')[1].find_element_by_tag_name('a').click()
         time.sleep(2)
         # div[2]/div[1]/header/p[2]/div/div[2]
-        info_box.find_elements_by_tag_name('p')[1].screenshot(r'D:\\Marco\\Universita\\Progetti\\OutletPeugeot\\auto1.png')
         optional = info_box.find_elements_by_tag_name('p')[1].find_element_by_tag_name('div').find_elements_by_tag_name('div')[1].text
         #/html/body/div[1]/div/div[2]/div[4]/div[2]/div[1]/header/p[2]/div/div[2]
         info_box.find_elements_by_tag_name('p')[1].find_element_by_tag_name('a').click()
