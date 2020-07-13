@@ -2,8 +2,23 @@
 import json
 import socket
 import time
+
+import requests
+import urllib3
 from selenium.webdriver import Chrome
 import telegram_send
+import argparse
+
+stdErrFile = r'D:\\Marco\\Universita\\Progetti\\OutletPeugout\\stderr.txt'
+sito = "https://webstore.peugeot.it/Cerca-per-categorie?lat=45.0607417&lng=7.528754299999999&LocationL=10098%20Rivoli%20TO%2C%20Italia&etd=0&mbd=1PP2S5P00000;&nbDisMax=20&GrTransmissionType=BVA00006&GrTransmissionTypeL=%20Automatico%20a%208%20Rapporti%20S&S&GrGrade=10000020;10001074&GrGradeL=&dst=100"
+optional_desiderati = ['Drive Assist Plus','Sensori di Parcheggio', 'con Visiopark']
+cars_json=r'D:\\Marco\\Universita\\Progetti\\OutletPeugout\\src\\cars.json'
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--loop',action='store_true' ,help='Indicates if you want script always on')
+parser.add_argument('--delay',dest='delay',help='indicates seconds of delay before running the loop')
+parser.set_defaults(delay=1)
+args = parser.parse_args()
 
 def controlla_novita(nuova_auto):
     manda_tg = False
@@ -30,31 +45,6 @@ def settings():
         driver.execute_script("window.scrollBy(0,1000)")
         i+=1
         time.sleep(3)
-    # cambio_button = driver.find_element_by_xpath("/html/body/div[1]/div/div[1]/form/div[5]/div/div/button")
-    # if cambio_button is not None:
-    #     cambio_button.click()
-    # time.sleep(2)
-    # radio_button_cambio = driver.find_element_by_xpath("/html/body/div[1]/div/div[1]/form/div[5]/div/div/ul/li[1]/a/label/input")
-    # if radio_button_cambio is not None:
-    #     radio_button_cambio.click()
-    # time.sleep(4)
-    # allestimento_btn = driver.find_element_by_xpath("/html/body/div[1]/div/div[1]/form/div[7]/div/div/button")
-    # if allestimento_btn is not None:
-    #     allestimento_btn.click()
-    # time.sleep(2)
-    # allure_btn = driver.find_element_by_xpath("/html/body/div[1]/div/div[1]/form/div[7]/div/div/ul/li[1]/a/label/input")
-    # if  allure_btn is not None:
-    #     allure_btn.click()
-    # time.sleep(4)
-    # allestimento_btn = driver.find_element_by_xpath("/html/body/div[1]/div/div[1]/form/div[7]/div/div/button")
-    # if allestimento_btn is not None:
-    #     allestimento_btn.click()
-    # time.sleep(2)
-    # gtline_btn = driver.find_element_by_xpath("/html/body/div[1]/div/div[1]/form/div[7]/div/div/ul/li[3]/a/label/input")
-    # if  gtline_btn is not None:
-    #     gtline_btn.click()
-    # time.sleep(4)
-
 
 def ha_optional_giusti(nuova_auto: dict, optional_che_vorrei):
     if 'GT Line' in nuova_auto['nome']:
@@ -86,15 +76,26 @@ def get_new_car(cars_json='cars.json'):
     # while altre_pagine is not None:
     n_auto = -1
     auto_left = True
-    while n_auto<len(automobili)-1:
+    while auto_left or n_auto<len(automobili)-1:
         n_auto += 1
-        info_box = automobili[n_auto].find_elements_by_tag_name('div')[1].find_elements_by_tag_name('div')[
-            0].find_element_by_tag_name('header')
+        try:
+            info_box = automobili[n_auto].find_elements_by_tag_name('div')[1].find_elements_by_tag_name('div')[0].find_element_by_tag_name('header')
+        except Exception as e: #non ci sono più auto
+            auto_left = False
+            continue
         if info_box is None:
             auto_left = False
             continue
         link = info_box.find_element_by_tag_name('h2').find_element_by_tag_name('a').get_attribute('href')
         nome = info_box.find_element_by_tag_name('h2').find_element_by_tag_name('a').text
+        prezzo = automobili[n_auto].find_element_by_class_name("span8")
+        prezzo = prezzo.find_element_by_class_name("price")
+        prezzo = prezzo.find_element_by_tag_name("header")
+        prezzo = prezzo.find_element_by_class_name("totalPrice")
+        prezzo = prezzo.find_element_by_tag_name("strong")
+        prezzo = prezzo.text
+        #/html/body/div[1]/div/div[2]/div[5]
+        #/html/body/div[1]/div/div[2]/div[3]/div[2]/div[2]/header/p[3]/strong
         # click per aprire lista optional
         info_box.find_elements_by_tag_name('p')[1].find_element_by_tag_name('a').click()
         time.sleep(2)
@@ -104,9 +105,8 @@ def get_new_car(cars_json='cars.json'):
         info_box.find_elements_by_tag_name('p')[1].find_element_by_tag_name('a').click()
         time.sleep(2)
         # controllo se aggiornare il db
-        nuova_auto = {'nome': nome, 'optional': optional}
+        nuova_auto = {'nome': nome, 'optional': optional,"prezzo":prezzo}
         if ha_optional_giusti(nuova_auto, optional_desiderati.copy()):
-
             print(n_auto, '- Ho trovato questa auto come la vuoi tu', nuova_auto)
             controlla_novita(nuova_auto)
         # print('prossima pagina')
@@ -124,29 +124,29 @@ def start_new_search(cars_json):
     try:
         with Chrome() as driver:
             driver.get(sito)
-            #driver.minimize_window()
-
             try:
                 settings()
                 get_new_car(cars_json)
             except Exception as e:
-                print(e)
+                with open(stdErrFile) as errFile:
+                    print(e, file=errFile)
             # time.sleep(120)
-    except socket.gaierror:
+    except (socket.gaierror, urllib3.exceptions.NewConnectionError, urllib3.exceptions.MaxRetryError, requests.exceptions.ConnectionError):
         print("Errore di connessione")
 
 #start
-with open(r'D:\\Marco\\Universita\\Progetti\\OutletPeugout\\stderr.txt','w') as init:
-    print(file=init)
-try:
-    sito = "https://webstore.peugeot.it/Cerca-per-categorie?lat=45.0607417&lng=7.528754299999999&LocationL=10098%20Rivoli%20TO%2C%20Italia&etd=0&mbd=1PP2S5P00000;&nbDisMax=20&GrTransmissionType=BVA00006&GrTransmissionTypeL=%20Automatico%20a%208%20Rapporti%20S&S&GrGrade=10000020;10001074&GrGradeL=&dst=100"
-    optional_desiderati = ['Drive Assist Plus','Sensori di Parcheggio Anteriori con Visiopark 180']
-    cars_json=r'D:\\Marco\\Universita\\Progetti\\OutletPeugout\\src\\cars.json'
-    time.sleep(10)
-    while True:
+if __name__ == '__main__':
+    with open(stdErrFile, 'w') as error:
+        print("", file=error)
+    if args.loop is not None and args.loop:
+        try:
+            time.sleep(int(args.delay))
+            while True:
+                start_new_search(cars_json)
+                time.sleep(60*30)
+        except Exception as e:
+            with open(stdErrFile, 'w') as error:
+                print(e, file=error)
+            raise
+    else:
         start_new_search(cars_json)
-        time.sleep(60*30)
-except Exception as e:
-    with open(r'D:\\Marco\\Universita\\Progetti\\OutletPeugout\\stderr.txt','w') as error:
-        print(e,file=error)
-    raise
