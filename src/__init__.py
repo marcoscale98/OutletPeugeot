@@ -37,7 +37,6 @@ def controlla_novita(nuova_auto, carNum):
         messaggio = "<a href='{0}'>{1} al prezzo di: {2}</a>".format(nuova_auto['link'],nuova_auto['nome'],nuova_auto['prezzo'])
         telegram_send.send(messages=[messaggio],parse_mode="html")
 
-
 def settings():
     # SETTINGS
     try: #check connessione
@@ -55,7 +54,6 @@ def settings():
     scrool_page()
     return True
 
-
 def scrool_page():
     # scroll the page to load all the cars
     i = 0
@@ -63,7 +61,6 @@ def scrool_page():
         driver.execute_script("window.scrollBy(0,1000)")
         i += 1
         time.sleep(4)
-
 
 def ha_optional_giusti(nuova_auto: dict, optional_che_vorrei):
     if 'GT Line' in nuova_auto['nome']:
@@ -89,33 +86,31 @@ def get_new_car(cars_json='cars.json'):
         with open(cars_json, 'x', encoding='UTF-8') as writer:
             writer.write(json.dumps({}))
 
-    # while altre_pagine is not None:
     n_auto = -1
     n_page = 0
     auto_left = True
     page_left = True
-    # while page_left:
-    #     box_auto = analizza_pagina_auto(auto_left, n_auto, n_page)
-    #     page_left = change_page(box_auto)
-    # #end while
-    analizza_pagina_auto(auto_left, n_auto, n_page)
+    while page_left:
+        box_auto = analizza_pagina_auto(auto_left, n_page)
+        page_left = change_page(box_auto)
+        n_page +=1
+    #end while
+    #analizza_pagina_auto(auto_left, n_page)
     with open(cars_json, 'w', encoding='UTF-8') as writer:
         writer.write(json.dumps(list_auto_new, indent=3))
     print("Fine ricerca")
 
-
-def analizza_pagina_auto(auto_left, n_auto, n_page):
+def analizza_pagina_auto(auto_left, n_page):
     box_auto = driver.find_element_by_xpath("/html/body/div[1]/div/div[2]")
     automobili = box_auto.find_elements_by_class_name('result')
     print("Trovate", str(len(automobili)), "auto da analizzare nella pagina numero", n_page)
     n_page += 1
-    while auto_left or n_auto < len(automobili) - 1:
-        n_auto += 1
+    for n_auto in range(len(automobili)):
         link = ""
         try:
             info_box = automobili[n_auto].find_elements_by_tag_name('div')[1].find_elements_by_tag_name('div')[
                 0].find_element_by_tag_name('header')
-        except Exception as e:  # non ci sono più auto
+        except NoSuchElementException as e:  # non ci sono più auto
             auto_left = False
             continue
         try:
@@ -158,19 +153,19 @@ def analizza_pagina_auto(auto_left, n_auto, n_page):
     # end while
     return box_auto
 
-
 def change_page(box_auto):
     try:
-        pulsanti_pagina = box_auto.find_elements_by_xpath("/footer/div[2]/ul/il")
-        # /html/body/div[1]/div/div[2]/footer/div[2]/ul/il
+        pulsanti_pagina = box_auto.find_element_by_class_name("pagination")
+        pulsanti_pagina = pulsanti_pagina.find_element_by_tag_name("ul")
+        pulsanti_pagina = pulsanti_pagina.find_elements_by_tag_name("li")
+        # /html/body/div[1]/div/div[2]/footer/div[2]/ul/li
         pulsanti_pagina[-2].find_element_by_tag_name('a').click()
         print("Ho cambiato pagina")
         time.sleep(2)
         scrool_page()
         return True
-    except NoSuchElementException:
+    except NoSuchElementException as e: #fine pagine
         return False
-
 
 def start_new_search(cars_json):
     global driver
